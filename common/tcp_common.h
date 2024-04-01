@@ -2,11 +2,12 @@
  * @Description: tcp 传输文件 公共代码
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:15:37
- * @LastEditTime: 2024-04-01 16:55:28
+ * @LastEditTime: 2024-04-01 21:03:43
  * @LastEditors: TOTHTOT
- * @FilePath: \tcp_transmit_file\common\common.h
+ * @FilePath: \tcp_transmit_file\common\tcp_common.h
  */
-#ifndef __COMMON_H__
+#ifndef __TCP_COMMON_H__
+#define __TCP_COMMON_H__
 
 /* 头文件 */
 #include <stdint.h>
@@ -16,6 +17,8 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <stdbool.h>
+#include <signal.h>
+#include <fcntl.h>
 
 /* 宏定义 */
 #define SERVER_DEBUG_FLAG 1                  // 打印是否开启
@@ -30,12 +33,12 @@
 #define INFO_PRINT(fmt, ...)                                                               \
     do                                                                                     \
     {                                                                                      \
-        printf("Server Info %s,%s,%d: " fmt "", __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__); \
+        printf("Info %s,%s,%d: " fmt "", __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__); \
     } while (0)
 #define ERROR_PRINT(fmt, ...)                                                               \
     do                                                                                     \
     {                                                                                      \
-        printf("Server Error %s,%s,%d: " fmt "", __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__); \
+        printf("Error %s,%s,%d: " fmt "", __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__); \
     } while (0)
 #else
 #define INFO_PRINT(fmt, ...) \
@@ -56,4 +59,4 @@ typedef struct transmit_data
     uint8_t *file_data_p;                 // 传输的文件大小
 } transmit_data_t;
 
-#endif /* __COMMON_H__ */
+#endif /* __TCP_COMMON_H__ */
