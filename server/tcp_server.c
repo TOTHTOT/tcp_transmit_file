@@ -2,7 +2,7 @@
  * @Description: tcp 文件传输 服务器
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:09
- * @LastEditTime: 2024-04-01 21:00:46
+ * @LastEditTime: 2024-04-01 21:47:52
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\server\tcp_server.c
  */
@@ -22,14 +22,31 @@ server_info_t *g_server_info_st_p = NULL;
 uint8_t check_arg(int argc, char *argv[])
 {
     main_argv_index_t index_em = (main_argv_index_t)argc;
+    struct in_addr addr;
+    int32_t ret = 0;
 
-    if (index_em >= MAIN_ARGV_INDEX_MAX) // 参数数量大于等于最大值, 错误
+    if (index_em != MAIN_ARGV_INDEX_MAX) // 参数数量大于等于最大值, 错误
     {
         ERROR_PRINT("argc invalid[%d]\n", argc);
-        return 1;
+        ret = 1;
+        goto ERROR_PRINT;
     }
-
+    // 检测IP地址是否有效
+    ret = inet_pton(AF_INET, argv[MAIN_ARGV_INDEX_IP], &addr);
+    if (ret != 1)
+    {
+        ERROR_PRINT("ip_address invalid[%s]\n", argv[MAIN_ARGV_INDEX_IP]);
+        ret = 2;
+        goto ERROR_PRINT;
+    }
+    memcpy(g_server_info_st_p->ip_address, argv[MAIN_ARGV_INDEX_IP], INET_ADDRSTRLEN);
     return 0;
+
+ERROR_PRINT:
+    printf("Usage: <IP_ADDRESS>\n");
+    printf("Example: 192.168.1.1\n");
+ERROR_RETURN:
+    return ret;
 }
 
 /**
@@ -85,7 +102,7 @@ uint8_t tcp_server_sock_init(server_info_t *server_info_st_p)
         exit(EXIT_FAILURE);
     }
     server_info_st_p->address.sin_family = AF_INET;
-    server_info_st_p->address.sin_addr.s_addr = INADDR_ANY;
+    server_info_st_p->address.sin_addr.s_addr = inet_addr(server_info_st_p->ip_address);
     server_info_st_p->address.sin_port = htons(TCP_USE_PORT);
 
     // 绑定套接字
@@ -102,7 +119,7 @@ uint8_t tcp_server_sock_init(server_info_t *server_info_st_p)
         exit(EXIT_FAILURE);
     }
 
-    return 0;
+        return 0;
 }
 
 /**
@@ -161,8 +178,9 @@ int main(int argc, char *argv[])
     server_info_st.running_flag = true;
     while (server_info_st.running_flag == true)
     {
+        scanf("%s", buffer);
         // 发送消息给客户端
-        send(server_info_st.new_socket, message, strlen(message), 0);
+        send(server_info_st.new_socket, buffer, strlen(buffer), 0);
         INFO_PRINT("is running\n");
         usleep(1000 * 1000); // 延时 1s
     }

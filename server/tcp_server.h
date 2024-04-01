@@ -20,6 +20,10 @@ typedef struct server_info
     int opt;
     int server_fd, new_socket;
     struct sockaddr_in address;
+    char ip_address[INET_ADDRSTRLEN];
+    struct sockaddr_in local_address;
+
+
 }server_info_t;
 
 #endif /* __TCP_SERVER_H__ */

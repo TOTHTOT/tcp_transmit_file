@@ -5,6 +5,12 @@
 #include "../common/tcp_common.h"
 
 /* 类型定义 */
+typedef enum 
+{
+    MAIN_ARGV_INDEX_IP = 1, // ip地址
+    MAIN_ARGV_INDEX_MAX
+}main_argv_index_t; // 传入的参数索引
+
 typedef struct tcp_client_info
 {
     /* sock 相关 */

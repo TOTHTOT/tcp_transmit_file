@@ -41,6 +41,8 @@ int main(int argc, char *argv[])
         INFO_PRINT("\nInvalid address/ Address not supported \n");
         return -1;
     }
+
+    // 连接服务器
     while (connect_retry_times <= 100)
     {
         // 连接到服务器
@@ -65,7 +67,8 @@ int main(int argc, char *argv[])
     {
         // 接收消息
         valread = read(client_info_st.sock, buffer, BUFFER_SIZE);
-        INFO_PRINT("recv:%s\n", buffer);
+        INFO_PRINT("valread = %d, recv:%s\n", valread, buffer);
+        memset(buffer, 0, BUFFER_SIZE);
     }
 
     return 0;
