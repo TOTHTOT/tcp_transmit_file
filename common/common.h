@@ -23,6 +23,7 @@
 #define TCP_USE_PORT 8080                    // 使用的端口
 #define TCP_RECV_MAX_BUFFER_SIZE (1024 * 10) // 接收缓存最大大小 1mb
 #define SERVER_UPLOAD_RECENT_FILE_NUM 10     // 服务器上传最近修改过的文件数量
+#define FILE_NAME_MAX_LEN 256                 // 文件名最大长度
 
 // 日志相关函数
 #if (SERVER_DEBUG_FLAG == 1)
@@ -46,4 +47,13 @@
     {                        \
     } while (0)
 #endif /* SERVER_DEBUG_FLAG */
+
+/* 类型定义 */
+typedef struct transmit_data
+{
+    uint8_t file_name[FILE_NAME_MAX_LEN]; // 传输的文件名
+    uint32_t file_len;                    // 传输的文件长度
+    uint8_t *file_data_p;                 // 传输的文件大小
+} transmit_data_t;
+
 #endif /* __COMMON_H__ */
