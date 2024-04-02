@@ -2,7 +2,7 @@
  * @Description: tcp 文件传输 服务器
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:09
- * @LastEditTime: 2024-04-01 21:47:52
+ * @LastEditTime: 2024-04-02 15:48:15
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\server\tcp_server.c
  */
@@ -19,13 +19,12 @@ server_info_t *g_server_info_st_p = NULL;
  * @author: TOTHTOT
  * @Date: 2024-04-01 16:50:58
  */
-uint8_t check_arg(int argc, char *argv[])
+uint8_t check_arg(int argc, char *argv[], server_info_t *server_info_st_p)
 {
     main_argv_index_t index_em = (main_argv_index_t)argc;
     struct in_addr addr;
     int32_t ret = 0;
-
-    if (index_em != MAIN_ARGV_INDEX_MAX) // 参数数量大于等于最大值, 错误
+    if (index_em < MAIN_ARGV_INDEX_MAX) // 参数数量大于等于最大值, 错误
     {
         ERROR_PRINT("argc invalid[%d]\n", argc);
         ret = 1;
@@ -39,13 +38,26 @@ uint8_t check_arg(int argc, char *argv[])
         ret = 2;
         goto ERROR_PRINT;
     }
-    memcpy(g_server_info_st_p->ip_address, argv[MAIN_ARGV_INDEX_IP], INET_ADDRSTRLEN);
+    // 校验输入参数, 设置参数
+    INFO_PRINT("set config:\nip_address[%s], port[%s], sub_dir_num[%s], sub_dir[%s], sub_dir[%s], chek_file_time[%s]\n",
+               argv[MAIN_ARGV_INDEX_IP], argv[MAIN_ARGV_INDEX_POER],
+               argv[MAIN_ARGV_INDEX_SUB_DIR_NUM], argv[MAIN_ARGV_INDEX_SUB_DIR], 
+               argv[MAIN_ARGV_INDEX_SUB_DIR + 1], argv[MAIN_ARGV_INDEX_SUB_DIR + 2]);
+
+    server_info_st_p->port = atoi(argv[MAIN_ARGV_INDEX_POER]);
+    server_info_st_p->file_listen_st.listen_sub_dir_num = atoi(argv[MAIN_ARGV_INDEX_SUB_DIR_NUM]);
+    server_info_st_p->file_listen_st.listen_sub_dir_path[0] = (int8_t *)argv[MAIN_ARGV_INDEX_SUB_DIR];
+    server_info_st_p->file_listen_st.listen_sub_dir_path[1] = (int8_t *)argv[MAIN_ARGV_INDEX_SUB_DIR + 1];
+    server_info_st_p->file_listen_st.check_file_time = (int8_t *)argv[MAIN_ARGV_INDEX_SUB_DIR + 2];
+    memcpy(server_info_st_p->ip_address, argv[MAIN_ARGV_INDEX_IP], INET_ADDRSTRLEN);
+    INFO_PRINT("sub_dir_num = %d, path[1] = %s, path[2] = %s\n", server_info_st_p->file_listen_st.listen_sub_dir_num, 
+    server_info_st_p->file_listen_st.listen_sub_dir_path[0], server_info_st_p->file_listen_st.listen_sub_dir_path[1]);
     return 0;
 
 ERROR_PRINT:
     printf("Usage: <IP_ADDRESS>\n");
     printf("Example: 192.168.1.1\n");
-ERROR_RETURN:
+    // ERROR_RETURN:
     return ret;
 }
 
@@ -96,14 +108,15 @@ uint8_t tcp_server_sock_init(server_info_t *server_info_st_p)
     }
 
     // 设置套接字选项
-    if (setsockopt(server_info_st_p->server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &server_info_st_p->opt, sizeof(server_info_st_p->opt)))
+    // if (setsockopt(server_info_st_p->server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &server_info_st_p->opt, sizeof(server_info_st_p->opt)))
+    if (setsockopt(server_info_st_p->server_fd, SOL_SOCKET, SO_REUSEADDR, &server_info_st_p->opt, sizeof(server_info_st_p->opt)))
     {
         perror("setsockopt");
         exit(EXIT_FAILURE);
     }
     server_info_st_p->address.sin_family = AF_INET;
     server_info_st_p->address.sin_addr.s_addr = inet_addr(server_info_st_p->ip_address);
-    server_info_st_p->address.sin_port = htons(TCP_USE_PORT);
+    server_info_st_p->address.sin_port = htons(server_info_st_p->port);
 
     // 绑定套接字
     if (bind(server_info_st_p->server_fd, (struct sockaddr *)&server_info_st_p->address, sizeof(server_info_st_p->address)) < 0)
@@ -119,7 +132,7 @@ uint8_t tcp_server_sock_init(server_info_t *server_info_st_p)
         exit(EXIT_FAILURE);
     }
 
-        return 0;
+    return 0;
 }
 
 /**
@@ -150,12 +163,11 @@ int main(int argc, char *argv[])
     server_info_t server_info_st = {0};
     int addrlen = sizeof(server_info_st.address);
     char buffer[TCP_RECV_MAX_BUFFER_SIZE] = {0};
-    const char *message = "Hello from server";
 
     g_server_info_st_p = &server_info_st;
 
     // 检验参数是否合法
-    if (check_arg(argc, argv) != 0)
+    if (check_arg(argc, argv, &server_info_st) != 0)
     {
         ERROR_PRINT("check_arg() fail, exit program!\n");
         return 1;
