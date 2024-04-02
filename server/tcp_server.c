@@ -2,7 +2,7 @@
  * @Description: tcp 文件传输 服务器
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:09
- * @LastEditTime: 2024-04-02 15:48:15
+ * @LastEditTime: 2024-04-02 16:00:00
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\server\tcp_server.c
  */
@@ -10,6 +10,32 @@
 
 /* 全局变量 */
 server_info_t *g_server_info_st_p = NULL;
+
+/**
+ * @name: server_set_conifg
+ * @msg: 将传入的 argv 保存到使用的参数中
+ * @param {char} *argv
+ * @param {server_info_t} *server_info_st_p
+ * @return {== 0 成功}
+ * @author: TOTHTOT
+ * @Date: 2024-04-02 15:53:03
+ */
+static uint8_t server_set_conifg(char *argv[], server_info_t *server_info_st_p)
+{
+    server_info_st_p->port = atoi(argv[MAIN_ARGV_INDEX_POER]);
+    server_info_st_p->file_listen_st.listen_sub_dir_num = atoi(argv[MAIN_ARGV_INDEX_SUB_DIR_NUM]);
+    server_info_st_p->file_listen_st.listen_sub_dir_path[0] = (int8_t *)argv[MAIN_ARGV_INDEX_SUB_DIR];
+    server_info_st_p->file_listen_st.listen_sub_dir_path[1] = (int8_t *)argv[MAIN_ARGV_INDEX_SUB_DIR + 1];
+    server_info_st_p->file_listen_st.check_file_time = atoi(argv[MAIN_ARGV_INDEX_SUB_DIR + 2]);
+    memcpy(server_info_st_p->ip_address, argv[MAIN_ARGV_INDEX_IP], INET_ADDRSTRLEN);
+
+    INFO_PRINT("port = %d, sub_dir_num = %d, path[1] = %s, path[2] = %s time = %d\n",
+               server_info_st_p->port, server_info_st_p->file_listen_st.listen_sub_dir_num,
+               server_info_st_p->file_listen_st.listen_sub_dir_path[0], server_info_st_p->file_listen_st.listen_sub_dir_path[1],
+               server_info_st_p->file_listen_st.check_file_time);
+
+    return 0;
+}
 /**
  * @name: check_arg
  * @msg: 检测传入参数是否合法
@@ -41,17 +67,10 @@ uint8_t check_arg(int argc, char *argv[], server_info_t *server_info_st_p)
     // 校验输入参数, 设置参数
     INFO_PRINT("set config:\nip_address[%s], port[%s], sub_dir_num[%s], sub_dir[%s], sub_dir[%s], chek_file_time[%s]\n",
                argv[MAIN_ARGV_INDEX_IP], argv[MAIN_ARGV_INDEX_POER],
-               argv[MAIN_ARGV_INDEX_SUB_DIR_NUM], argv[MAIN_ARGV_INDEX_SUB_DIR], 
+               argv[MAIN_ARGV_INDEX_SUB_DIR_NUM], argv[MAIN_ARGV_INDEX_SUB_DIR],
                argv[MAIN_ARGV_INDEX_SUB_DIR + 1], argv[MAIN_ARGV_INDEX_SUB_DIR + 2]);
 
-    server_info_st_p->port = atoi(argv[MAIN_ARGV_INDEX_POER]);
-    server_info_st_p->file_listen_st.listen_sub_dir_num = atoi(argv[MAIN_ARGV_INDEX_SUB_DIR_NUM]);
-    server_info_st_p->file_listen_st.listen_sub_dir_path[0] = (int8_t *)argv[MAIN_ARGV_INDEX_SUB_DIR];
-    server_info_st_p->file_listen_st.listen_sub_dir_path[1] = (int8_t *)argv[MAIN_ARGV_INDEX_SUB_DIR + 1];
-    server_info_st_p->file_listen_st.check_file_time = (int8_t *)argv[MAIN_ARGV_INDEX_SUB_DIR + 2];
-    memcpy(server_info_st_p->ip_address, argv[MAIN_ARGV_INDEX_IP], INET_ADDRSTRLEN);
-    INFO_PRINT("sub_dir_num = %d, path[1] = %s, path[2] = %s\n", server_info_st_p->file_listen_st.listen_sub_dir_num, 
-    server_info_st_p->file_listen_st.listen_sub_dir_path[0], server_info_st_p->file_listen_st.listen_sub_dir_path[1]);
+    server_set_conifg(argv, server_info_st_p);
     return 0;
 
 ERROR_PRINT:
@@ -136,6 +155,33 @@ uint8_t tcp_server_sock_init(server_info_t *server_info_st_p)
 }
 
 /**
+ * @name: server_init
+ * @msg: 服务器所有的初始化都放到里面
+ * @param {int} argc
+ * @param {char} *argv
+ * @param {server_info_t} *server_info_st_p
+ * @return { == 0 成功; != 0 失败}
+ * @author: TOTHTOT
+ * @Date: 2024-04-02 15:55:52
+ */
+uint8_t server_init(int argc, char *argv[], server_info_t *server_info_st_p)
+{
+    // 检验参数是否合法
+    if (check_arg(argc, argv, server_info_st_p) != 0)
+    {
+        ERROR_PRINT("check_arg() fail, exit program!\n");
+        return 1;
+    }
+
+    // 注册信号处理函数
+    signal(SIGINT, sig_handler);
+
+    // 初始化服务器 sock 相关功能, 有异常直接退出
+    if (tcp_server_sock_init(server_info_st_p) != 0)
+        return 2;
+    return 0;
+}
+/**
  * @name: server_exit
  * @msg: 服务器关闭
  * @param {server_info_t} *server_info_st_p
@@ -166,18 +212,11 @@ int main(int argc, char *argv[])
 
     g_server_info_st_p = &server_info_st;
 
-    // 检验参数是否合法
-    if (check_arg(argc, argv, &server_info_st) != 0)
+    if (server_init(argc, argv, &server_info_st) != 0)
     {
-        ERROR_PRINT("check_arg() fail, exit program!\n");
+        ERROR_PRINT("server_init() fail, exit program!\n");
         return 1;
     }
-
-    // 注册信号处理函数
-    signal(SIGINT, sig_handler);
-
-    // 初始化服务器 sock 相关功能
-    tcp_server_sock_init(g_server_info_st_p);
 
     // 阻塞接受连接
     if ((server_info_st.new_socket = accept(server_info_st.server_fd, (struct sockaddr *)&server_info_st.address, (socklen_t *)&addrlen)) < 0)
