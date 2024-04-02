@@ -2,7 +2,7 @@
  * @Description: tcp 文件传输 服务器
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:09
- * @LastEditTime: 2024-04-02 16:00:00
+ * @LastEditTime: 2024-04-02 18:05:20
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\server\tcp_server.c
  */
@@ -65,10 +65,10 @@ uint8_t check_arg(int argc, char *argv[], server_info_t *server_info_st_p)
         goto ERROR_PRINT;
     }
     // 校验输入参数, 设置参数
-    INFO_PRINT("set config:\nip_address[%s], port[%s], sub_dir_num[%s], sub_dir[%s], sub_dir[%s], chek_file_time[%s]\n",
+    /* INFO_PRINT("set config:\nip_address[%s], port[%s], sub_dir_num[%s], sub_dir[%s], sub_dir[%s], chek_file_time[%s]\n",
                argv[MAIN_ARGV_INDEX_IP], argv[MAIN_ARGV_INDEX_POER],
                argv[MAIN_ARGV_INDEX_SUB_DIR_NUM], argv[MAIN_ARGV_INDEX_SUB_DIR],
-               argv[MAIN_ARGV_INDEX_SUB_DIR + 1], argv[MAIN_ARGV_INDEX_SUB_DIR + 2]);
+               argv[MAIN_ARGV_INDEX_SUB_DIR + 1], argv[MAIN_ARGV_INDEX_SUB_DIR + 2]); */
 
     server_set_conifg(argv, server_info_st_p);
     return 0;
@@ -155,6 +155,58 @@ uint8_t tcp_server_sock_init(server_info_t *server_info_st_p)
 }
 
 /**
+ * @name: server_file_listen_init
+ * @msg: 服务器监听文件功能初始化, 使用 epoll 管理多个 inotify_fd
+ * @param {server_info_t} *server_info_st_p
+ * @return {*}
+ * @author: TOTHTOT
+ * @Date: 2024-04-02 17:14:16
+ */
+uint8_t server_file_listen_init(server_info_t *server_info_st_p)
+{
+    int32_t i = 0;
+
+    // 初始化 epoll
+    server_info_st_p->file_listen_st.epoll_fd = epoll_create1(0);
+    if (server_info_st_p->file_listen_st.epoll_fd == -1)
+    {
+        perror("epoll_create1");
+        exit(EXIT_FAILURE);
+    }
+
+    for (i = 0; i < server_info_st_p->file_listen_st.listen_sub_dir_num; i++)
+    {
+        server_info_st_p->file_listen_st.inotify_fd[i] = inotify_init();
+        if (server_info_st_p->file_listen_st.inotify_fd[i] < 0)
+        {
+            ERROR_PRINT("inotify_init()[%d] error\n", i);
+            return 1;
+        }
+
+        // 根据传入的监听目录数量设置对应的 watch 描述符, 这里监听文件是否修改
+        server_info_st_p->file_listen_st.inotify_wd[i] = inotify_add_watch(server_info_st_p->file_listen_st.inotify_fd[i], (char *)server_info_st_p->file_listen_st.listen_sub_dir_path[i], IN_ALL_EVENTS);
+        if (server_info_st_p->file_listen_st.inotify_wd[i] < 0)
+        {
+
+            ERROR_PRINT("inotify_add_watch()[%d] error\n", i);
+            return 2;
+        }
+
+        // 添加 epoll 监听事件
+        struct epoll_event event;
+        event.events = EPOLLIN;
+        event.data.fd = server_info_st_p->file_listen_st.inotify_fd[i];
+
+        if (epoll_ctl(server_info_st_p->file_listen_st.epoll_fd, EPOLL_CTL_ADD, server_info_st_p->file_listen_st.inotify_fd[i], &event) == -1)
+        {
+            ERROR_PRINT("epoll_ctl() fail\n");
+            return 3;
+        }
+    }
+
+    return 0;
+}
+/**
  * @name: server_init
  * @msg: 服务器所有的初始化都放到里面
  * @param {int} argc
@@ -191,8 +243,94 @@ uint8_t server_init(int argc, char *argv[], server_info_t *server_info_st_p)
  */
 void server_exit(server_info_t *server_info_st_p)
 {
+    uint32_t i = 0;
+
+    // 关闭 inotify_fd
+    for (i = 0; i < server_info_st_p->file_listen_st.listen_sub_dir_num; i++)
+    {
+        close(server_info_st_p->file_listen_st.inotify_fd[i]);
+    }
+    // 关闭 epoll, 线程会立马退出
+    close(server_info_st_p->file_listen_st.epoll_fd);
+    // 回收线程
+    pthread_join(server_info_st_p->file_listen_tid, NULL);
+
     send(server_info_st_p->new_socket, SERVER_EXIT_STR, strlen(SERVER_EXIT_STR), 0);
     INFO_PRINT("server exit\n");
+}
+
+/**
+ * @name: pth_file_listen
+ * @msg: 监听文件是否状态线程
+ * @param {void} *arg
+ * @return {*}
+ * @author: TOTHTOT
+ * @Date: 2024-04-02 17:05:24
+ */
+void *pth_file_listen(void *arg)
+{
+    server_info_t *server_info_st_p = (server_info_t *)arg;
+    // 初始化监听文件
+    if (server_file_listen_init(server_info_st_p) != 0)
+    {
+        ERROR_PRINT("server_file_listen_init() fail, exit program!\n");
+        return NULL;
+    }
+    // 根据监听文件夹数申请内存
+    struct epoll_event *events = malloc(sizeof(struct epoll_event) * server_info_st_p->file_listen_st.listen_sub_dir_num);
+    if (events == NULL)
+    {
+        ERROR_PRINT("malloc() fail, exit pth_file_listen!\n");
+        return NULL;
+    }
+    INFO_PRINT("epoll_fd = %d, listen_num = %d\n", server_info_st_p->file_listen_st.epoll_fd,
+               server_info_st_p->file_listen_st.listen_sub_dir_num);
+    while (1)
+    {
+        int num_events = epoll_wait(server_info_st_p->file_listen_st.epoll_fd, events, server_info_st_p->file_listen_st.listen_sub_dir_num, -1);
+        if (num_events == -1)
+        {
+            perror("epoll_wait() fail");
+            break;
+        }
+
+        for (int i = 0; i < num_events; i++)
+        {
+            for (int j = 0; j < server_info_st_p->file_listen_st.listen_sub_dir_num; j++)
+            {
+                if (events[i].data.fd == server_info_st_p->file_listen_st.inotify_fd[j])
+                {
+                    INFO_PRINT("Inotify event occurred for inotify_fd %d\n", server_info_st_p->file_listen_st.inotify_fd[j]);
+
+                    // 处理文件系统事件
+
+                    // 读取inotify_fd以清除事件
+                    char buf[FILE_LISTEN_BUF_LEN] = {0};
+                    ssize_t len, ii = 0;
+                    len = read(server_info_st_p->file_listen_st.inotify_fd[j], buf, FILE_LISTEN_BUF_LEN);
+                    if (len < 0)
+                    {
+                        ERROR_PRINT("read() fail\n");
+                        break;
+                    }
+                    struct inotify_event *event = (struct inotify_event *)&buf[ii];
+                    if (event->mask & IN_ALL_EVENTS)
+                    {
+                        INFO_PRINT("File modified: %s\n", event->name);
+                    }
+
+                    /* while (ii < len)
+                    {
+                        ii += FILE_LISTEN_EVENT_SIZE + event->len;
+                    } */
+                }
+            }
+        }
+    }
+
+    free(events);
+
+    return NULL;
 }
 
 /**
@@ -208,10 +346,10 @@ int main(int argc, char *argv[])
 {
     server_info_t server_info_st = {0};
     int addrlen = sizeof(server_info_st.address);
-    char buffer[TCP_RECV_MAX_BUFFER_SIZE] = {0};
 
     g_server_info_st_p = &server_info_st;
 
+    // 初始化服务器
     if (server_init(argc, argv, &server_info_st) != 0)
     {
         ERROR_PRINT("server_init() fail, exit program!\n");
@@ -224,15 +362,38 @@ int main(int argc, char *argv[])
         perror("accept");
         exit(EXIT_FAILURE);
     }
+    // 连接成功创建线程监听文件
+    pthread_create(&server_info_st.file_listen_tid, NULL, pth_file_listen, (void *)&server_info_st);
+
     INFO_PRINT("client connected, client_fd = %d\n", server_info_st.new_socket);
     // 主循环, 处理发送功能
     server_info_st.running_flag = true;
     while (server_info_st.running_flag == true)
     {
+        /* ssize_t len, i = 0;
+        len = read(server_info_st.file_listen_st.inotify_fd, listen_file_buffer, FILE_LISTEN_BUF_LEN);
+        if (len < 0)
+        {
+            perror("read");
+            exit(EXIT_FAILURE);
+        }
+
+        while (i < len)
+        {
+            struct inotify_event *event = (struct inotify_event *)&listen_file_buffer[i];
+            if (event->mask & IN_ALL_EVENTS)
+            {
+                printf("File modified: %s\n", event->name);
+            }
+            i += FILE_LISTEN_EVENT_SIZE + event->len;
+        } */
+
+#if 0
         scanf("%s", buffer);
         // 发送消息给客户端
         send(server_info_st.new_socket, buffer, strlen(buffer), 0);
         INFO_PRINT("is running\n");
+#endif
         usleep(1000 * 1000); // 延时 1s
     }
 

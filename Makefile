@@ -1,5 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -g
+CFLAGS = -Wall -Wextra -g -std=gnu99
+LDFLAGS = -pthread
 
 .PHONY: all server client clean
 
@@ -15,10 +16,10 @@ client: tcp_client
 endif
 
 tcp_server: server/tcp_server.c server/tcp_server.h common/tcp_common.h
-	$(CC) $(CFLAGS) -o $@ server/tcp_server.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ server/tcp_server.c
 
 tcp_client: client/tcp_client.c common/tcp_common.h
-	$(CC) $(CFLAGS) -o $@ client/tcp_client.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ client/tcp_client.c
 
 clean:
 	rm -f tcp_server tcp_client
