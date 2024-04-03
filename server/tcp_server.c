@@ -2,7 +2,7 @@
  * @Description: tcp 文件传输 服务器
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:09
- * @LastEditTime: 2024-04-02 18:05:20
+ * @LastEditTime: 2024-04-03 10:18:24
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\server\tcp_server.c
  */
@@ -184,7 +184,7 @@ uint8_t server_file_listen_init(server_info_t *server_info_st_p)
         }
 
         // 根据传入的监听目录数量设置对应的 watch 描述符, 这里监听文件是否修改
-        server_info_st_p->file_listen_st.inotify_wd[i] = inotify_add_watch(server_info_st_p->file_listen_st.inotify_fd[i], (char *)server_info_st_p->file_listen_st.listen_sub_dir_path[i], IN_ALL_EVENTS);
+        server_info_st_p->file_listen_st.inotify_wd[i] = inotify_add_watch(server_info_st_p->file_listen_st.inotify_fd[i], (char *)server_info_st_p->file_listen_st.listen_sub_dir_path[i], IN_MODIFY);
         if (server_info_st_p->file_listen_st.inotify_wd[i] < 0)
         {
 
@@ -202,6 +202,23 @@ uint8_t server_file_listen_init(server_info_t *server_info_st_p)
             ERROR_PRINT("epoll_ctl() fail\n");
             return 3;
         }
+    }
+
+    // 创建管道
+    if (pipe(server_info_st_p->file_listen_st.pipe_fds) == -1)
+    {
+        perror("pipe");
+        return 4;
+    }
+
+    // 添加 epoll 监听事件, 监听 pipe
+    struct epoll_event event;
+    event.events = EPOLLIN;
+    event.data.fd = server_info_st_p->file_listen_st.pipe_fds[0];
+    if (epoll_ctl(server_info_st_p->file_listen_st.epoll_fd, EPOLL_CTL_ADD, server_info_st_p->file_listen_st.pipe_fds[0], &event) == -1)
+    {
+        ERROR_PRINT("epoll_ctl() fail\n");
+        return 3;
     }
 
     return 0;
@@ -244,6 +261,7 @@ uint8_t server_init(int argc, char *argv[], server_info_t *server_info_st_p)
 void server_exit(server_info_t *server_info_st_p)
 {
     uint32_t i = 0;
+    char buf = 1;
 
     // 关闭 inotify_fd
     for (i = 0; i < server_info_st_p->file_listen_st.listen_sub_dir_num; i++)
@@ -252,6 +270,10 @@ void server_exit(server_info_t *server_info_st_p)
     }
     // 关闭 epoll, 线程会立马退出
     close(server_info_st_p->file_listen_st.epoll_fd);
+    INFO_PRINT("wait thread end\n");
+
+    // 通过管道发送数据给 epoll_wait 实现打断阻塞
+    write(server_info_st_p->file_listen_st.pipe_fds[1], &buf, sizeof(buf));
     // 回收线程
     pthread_join(server_info_st_p->file_listen_tid, NULL);
 
@@ -294,6 +316,13 @@ void *pth_file_listen(void *arg)
             break;
         }
 
+        // 优先处理管道发来的数据, 收到就退出
+        if (events[0].data.fd == server_info_st_p->file_listen_st.pipe_fds[0]) {
+            INFO_PRINT("Received signal, exiting...\n");
+            break;
+        }
+
+        // 处理监听文件事件
         for (int i = 0; i < num_events; i++)
         {
             for (int j = 0; j < server_info_st_p->file_listen_st.listen_sub_dir_num; j++)
@@ -314,7 +343,7 @@ void *pth_file_listen(void *arg)
                         break;
                     }
                     struct inotify_event *event = (struct inotify_event *)&buf[ii];
-                    if (event->mask & IN_ALL_EVENTS)
+                    if (event->mask & IN_MODIFY)
                     {
                         INFO_PRINT("File modified: %s\n", event->name);
                     }
@@ -329,7 +358,7 @@ void *pth_file_listen(void *arg)
     }
 
     free(events);
-
+    INFO_PRINT("thread end\n");
     return NULL;
 }
 
@@ -381,7 +410,7 @@ int main(int argc, char *argv[])
         while (i < len)
         {
             struct inotify_event *event = (struct inotify_event *)&listen_file_buffer[i];
-            if (event->mask & IN_ALL_EVENTS)
+            if (event->mask & IN_MODIFY )
             {
                 printf("File modified: %s\n", event->name);
             }

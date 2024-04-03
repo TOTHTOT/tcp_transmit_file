@@ -1,17 +1,10 @@
 <!--
-
  * @Description: 基于tcp协议的文件传输项目
-
  * @Author: TOTHTOT
-
  * @Date: 2024-04-01 16:10:24
-
- * @LastEditTime: 2024-04-01 16:26:39
-
- * @LastEditors: TOTHTOT
-
- * @FilePath: \tcp_transmit_file\README.md
-
+ * @LastEditTime: 2024-04-03 09:10:24
+ * @LastEditors: TOTHTOT
+ * @FilePath: \tcp_transmit_file\README.md
 -->
 
 # 基于tcp协议的文件传输项目
