@@ -2,7 +2,7 @@
  * @Description: tcp 文件传输 服务器
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:09
- * @LastEditTime: 2024-04-03 10:29:20
+ * @LastEditTime: 2024-04-03 13:50:14
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\server\tcp_server.c
  */
@@ -120,15 +120,15 @@ uint8_t tcp_server_sock_init(server_info_t *server_info_st_p)
     server_info_st_p->opt = 1;
 
     // 创建套接字
-    if ((server_info_st_p->server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
+    if ((server_info_st_p->clent_socket_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
     {
         perror("socket failed");
         exit(EXIT_FAILURE);
     }
 
     // 设置套接字选项
-    // if (setsockopt(server_info_st_p->server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &server_info_st_p->opt, sizeof(server_info_st_p->opt)))
-    if (setsockopt(server_info_st_p->server_fd, SOL_SOCKET, SO_REUSEADDR, &server_info_st_p->opt, sizeof(server_info_st_p->opt)))
+    // if (setsockopt(server_info_st_p->clent_socket_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &server_info_st_p->opt, sizeof(server_info_st_p->opt)))
+    if (setsockopt(server_info_st_p->clent_socket_fd, SOL_SOCKET, SO_REUSEADDR, &server_info_st_p->opt, sizeof(server_info_st_p->opt)))
     {
         perror("setsockopt");
         exit(EXIT_FAILURE);
@@ -138,14 +138,14 @@ uint8_t tcp_server_sock_init(server_info_t *server_info_st_p)
     server_info_st_p->address.sin_port = htons(server_info_st_p->port);
 
     // 绑定套接字
-    if (bind(server_info_st_p->server_fd, (struct sockaddr *)&server_info_st_p->address, sizeof(server_info_st_p->address)) < 0)
+    if (bind(server_info_st_p->clent_socket_fd, (struct sockaddr *)&server_info_st_p->address, sizeof(server_info_st_p->address)) < 0)
     {
         perror("bind failed");
         exit(EXIT_FAILURE);
     }
 
     // 监听
-    if (listen(server_info_st_p->server_fd, 3) < 0)
+    if (listen(server_info_st_p->clent_socket_fd, 3) < 0)
     {
         perror("listen");
         exit(EXIT_FAILURE);
@@ -277,10 +277,56 @@ void server_exit(server_info_t *server_info_st_p)
     // 回收线程
     pthread_join(server_info_st_p->file_listen_tid, NULL);
 
-    send(server_info_st_p->new_socket, SERVER_EXIT_STR, strlen(SERVER_EXIT_STR), 0);
+    send(server_info_st_p->clent_socket_fd, SERVER_EXIT_STR, strlen(SERVER_EXIT_STR), 0);
     INFO_PRINT("server exit\n");
 }
 
+/**
+ * @name: server_send_one_file
+ * @msg: 服务器 向 client 发送单个文件
+ * @param {server_info_t} *server_info_st_p 服务器结构体
+ * @param {transmit_data_t} *transmit_data_st_p 传输文件结构体指针
+ * @return { == 0 成功; != 0 失败;}
+ * @author: TOTHTOT
+ * @Date: 2024-04-03 11:31:52
+ */
+uint8_t server_send_one_file(server_info_t *server_info_st_p, transmit_data_t *transmit_data_st_p)
+{
+    FILE *file = fopen((char *)transmit_data_st_p->server_file_path, "rb");
+    if (file == NULL)
+    {
+        perror("fopen");
+        return 1; // 返回 1 表示打开失败
+    }
+
+    INFO_PRINT("start send file: %s\n", transmit_data_st_p->server_file_path);
+    // 从文件中读取数据并发送
+    size_t bytes_read;
+    #define BUFFER_SIZE 50
+    transmit_data_st_p->file_data_p = malloc(BUFFER_SIZE);
+    if (transmit_data_st_p->file_data_p == NULL)
+    {
+        ERROR_PRINT("malloc() file_data_p fail\n");
+        return 3;
+    }
+    while ((bytes_read = fread(transmit_data_st_p->file_data_p, 1, BUFFER_SIZE, file)) > 0)
+    {
+        if (send(server_info_st_p->clent_socket_fd, transmit_data_st_p->file_data_p, bytes_read, 0) == -1)
+        {
+            perror("send");
+            ERROR_PRINT("send file: %s fail\n", transmit_data_st_p->server_file_path);
+            fclose(file);
+            return 2;
+        }
+        memset(transmit_data_st_p->file_data_p, 0, BUFFER_SIZE);
+        INFO_PRINT("send file: %s, %d bytes\n", transmit_data_st_p->server_file_path, bytes_read);
+    }
+
+    // 关闭文件
+    fclose(file);
+    INFO_PRINT("send finish\n");
+    return 0;
+}
 /**
  * @name: pth_file_listen
  * @msg: 监听文件是否状态线程
@@ -330,7 +376,7 @@ void *pth_file_listen(void *arg)
             {
                 if (events[i].data.fd == server_info_st_p->file_listen_st.inotify_fd[j])
                 {
-                    INFO_PRINT("Inotify event occurred for inotify_fd %d\n", server_info_st_p->file_listen_st.inotify_fd[j]);
+                    INFO_PRINT("Inotify event occurred for inotify_fd %d, path = %s\n", server_info_st_p->file_listen_st.inotify_fd[j], server_info_st_p->file_listen_st.listen_sub_dir_path[j]);
 
                     // 处理文件系统事件
 
@@ -346,7 +392,20 @@ void *pth_file_listen(void *arg)
                     struct inotify_event *event = (struct inotify_event *)&buf[ii];
                     if (event->mask & IN_MODIFY)
                     {
+                        transmit_data_t *temp_transmit_data_p = malloc(sizeof(transmit_data_t));    // 传输文件功能结构体, 发送完成后释放掉
+                        if (temp_transmit_data_p == NULL)
+                        {
+                            ERROR_PRINT("malloc() to temp_transmit_data_p fail!!\n");
+                            break;
+                        }
+
                         INFO_PRINT("File modified: %s\n", event->name);
+
+                        // 合并地址和文件名
+                        sprintf((char *)temp_transmit_data_p->server_file_path, "%s/%s", server_info_st_p->file_listen_st.listen_sub_dir_path[j], event->name);
+                        sprintf((char *)temp_transmit_data_p->file_name, "%s", event->name);
+                        // 添加到传输列表, 同时传输多个文件时可能会由于网络原因造成阻塞所以使用列表
+                        server_send_one_file(server_info_st_p, temp_transmit_data_p);
                     }
 
                     /* while (ii < len)
@@ -363,6 +422,20 @@ void *pth_file_listen(void *arg)
     return NULL;
 }
 
+/**
+ * @name: pth_file_send
+ * @msg: 发送文件线程
+ * @param {void} *arg
+ * @return {*}
+ * @author: TOTHTOT
+ * @Date: 2024-04-03 10:58:30
+ */
+void *pth_file_send(void *arg)
+{
+    while (1)
+    {
+    }
+}
 /**
  * @name: main
  * @msg:
@@ -387,15 +460,17 @@ int main(int argc, char *argv[])
     }
 
     // 阻塞接受连接
-    if ((server_info_st.new_socket = accept(server_info_st.server_fd, (struct sockaddr *)&server_info_st.address, (socklen_t *)&addrlen)) < 0)
+    if ((server_info_st.clent_socket_fd = accept(server_info_st.clent_socket_fd, (struct sockaddr *)&server_info_st.address, (socklen_t *)&addrlen)) < 0)
     {
         perror("accept");
         exit(EXIT_FAILURE);
     }
     // 连接成功创建线程监听文件
     pthread_create(&server_info_st.file_listen_tid, NULL, pth_file_listen, (void *)&server_info_st);
-
-    INFO_PRINT("client connected, client_fd = %d\n", server_info_st.new_socket);
+    // 创建发送文件线程
+    pthread_create(&server_info_st.file_send_tid, NULL, pth_file_send, (void *)&server_info_st);
+    
+    INFO_PRINT("client connected, client_fd = %d\n", server_info_st.clent_socket_fd);
     // 主循环, 处理发送功能
     server_info_st.running_flag = true;
     while (server_info_st.running_flag == true)
@@ -421,7 +496,7 @@ int main(int argc, char *argv[])
 #if 0
         scanf("%s", buffer);
         // 发送消息给客户端
-        send(server_info_st.new_socket, buffer, strlen(buffer), 0);
+        send(server_info_st.clent_socket_fd, buffer, strlen(buffer), 0);
         INFO_PRINT("is running\n");
 #endif
         usleep(1000 * 1000); // 延时 1s

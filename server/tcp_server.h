@@ -39,7 +39,7 @@ typedef struct server_info
 
     // socket 功能相关
     int opt;
-    int server_fd, new_socket;
+    int server_socket_fd, clent_socket_fd;
     uint32_t port;
     struct sockaddr_in address;
     char ip_address[INET_ADDRSTRLEN];
@@ -47,6 +47,7 @@ typedef struct server_info
     // 监听文件夹相关功能
     file_listen_t file_listen_st;
     pthread_t file_listen_tid;
+    pthread_t file_send_tid;
 } server_info_t;
 
 #endif /* __TCP_SERVER_H__ */
