@@ -2,7 +2,7 @@
  * @Description: tcp 文件传输 服务器
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:09
- * @LastEditTime: 2024-04-03 10:18:24
+ * @LastEditTime: 2024-04-03 10:29:20
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\server\tcp_server.c
  */
@@ -223,6 +223,7 @@ uint8_t server_file_listen_init(server_info_t *server_info_st_p)
 
     return 0;
 }
+
 /**
  * @name: server_init
  * @msg: 服务器所有的初始化都放到里面
@@ -270,7 +271,6 @@ void server_exit(server_info_t *server_info_st_p)
     }
     // 关闭 epoll, 线程会立马退出
     close(server_info_st_p->file_listen_st.epoll_fd);
-    INFO_PRINT("wait thread end\n");
 
     // 通过管道发送数据给 epoll_wait 实现打断阻塞
     write(server_info_st_p->file_listen_st.pipe_fds[1], &buf, sizeof(buf));
@@ -317,8 +317,9 @@ void *pth_file_listen(void *arg)
         }
 
         // 优先处理管道发来的数据, 收到就退出
-        if (events[0].data.fd == server_info_st_p->file_listen_st.pipe_fds[0]) {
-            INFO_PRINT("Received signal, exiting...\n");
+        if (events[0].data.fd == server_info_st_p->file_listen_st.pipe_fds[0])
+        {
+            // INFO_PRINT("Received signal, exiting...\n");
             break;
         }
 
@@ -358,7 +359,7 @@ void *pth_file_listen(void *arg)
     }
 
     free(events);
-    INFO_PRINT("thread end\n");
+    // INFO_PRINT("thread end\n");
     return NULL;
 }
 
