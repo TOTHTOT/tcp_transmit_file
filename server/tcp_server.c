@@ -2,7 +2,7 @@
  * @Description: tcp 文件传输 服务器
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:09
- * @LastEditTime: 2024-04-03 13:50:14
+ * @LastEditTime: 2024-04-03 14:50:24
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\server\tcp_server.c
  */
@@ -302,26 +302,22 @@ uint8_t server_send_one_file(server_info_t *server_info_st_p, transmit_data_t *t
     INFO_PRINT("start send file: %s\n", transmit_data_st_p->server_file_path);
     // 从文件中读取数据并发送
     size_t bytes_read;
-    #define BUFFER_SIZE 50
-    transmit_data_st_p->file_data_p = malloc(BUFFER_SIZE);
-    if (transmit_data_st_p->file_data_p == NULL)
+    while ((bytes_read = fread(transmit_data_st_p->file_data, 1, TRANSMIT_MAX_BUFFER_SIZE, file)) > 0)
     {
-        ERROR_PRINT("malloc() file_data_p fail\n");
-        return 3;
-    }
-    while ((bytes_read = fread(transmit_data_st_p->file_data_p, 1, BUFFER_SIZE, file)) > 0)
-    {
-        if (send(server_info_st_p->clent_socket_fd, transmit_data_st_p->file_data_p, bytes_read, 0) == -1)
+        // 将整个结构体发出去
+        if (send(server_info_st_p->clent_socket_fd, transmit_data_st_p, sizeof(transmit_data_t), 0) == -1)
         {
             perror("send");
             ERROR_PRINT("send file: %s fail\n", transmit_data_st_p->server_file_path);
             fclose(file);
             return 2;
         }
-        memset(transmit_data_st_p->file_data_p, 0, BUFFER_SIZE);
-        INFO_PRINT("send file: %s, %d bytes\n", transmit_data_st_p->server_file_path, bytes_read);
+        memset(transmit_data_st_p->file_data, 0, TRANSMIT_MAX_BUFFER_SIZE);
+        INFO_PRINT("send file: %s, %d bytes, pack_num = %d\n", transmit_data_st_p->server_file_path, bytes_read, transmit_data_st_p->pack_num);
+        transmit_data_st_p->pack_num++;
     }
 
+    free(transmit_data_st_p);
     // 关闭文件
     fclose(file);
     INFO_PRINT("send finish\n");
@@ -434,6 +430,7 @@ void *pth_file_send(void *arg)
 {
     while (1)
     {
+        usleep(100);
     }
 }
 /**
