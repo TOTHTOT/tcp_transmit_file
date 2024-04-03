@@ -2,7 +2,7 @@
  * @Description: 基于tcp协议的文件传输项目
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:10:24
- * @LastEditTime: 2024-04-03 13:38:44
+ * @LastEditTime: 2024-04-03 17:12:01
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\README.md
 -->
@@ -32,3 +32,5 @@
 4. [ ] client 接收到 server 发送的退出命令时也退出;
 5. [ ] client 接收到 server 发送的文件时, 保存文件到指定目录;
 6. [ ] client 掉线 server 要设置对应状态;
+## 未解决bug
+1. [ ] 监听文件修改功能不能同时处理多个文件;
