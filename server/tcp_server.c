@@ -2,7 +2,7 @@
  * @Description: tcp 文件传输 服务器
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:09
- * @LastEditTime: 2024-04-03 14:50:24
+ * @LastEditTime: 2024-04-03 17:29:52
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\server\tcp_server.c
  */
@@ -318,6 +318,7 @@ uint8_t server_send_one_file(server_info_t *server_info_st_p, transmit_data_t *t
     }
 
     free(transmit_data_st_p);
+    transmit_data_st_p = NULL;
     // 关闭文件
     fclose(file);
     INFO_PRINT("send finish\n");
@@ -341,10 +342,10 @@ void *pth_file_listen(void *arg)
         return NULL;
     }
     // 根据监听文件夹数申请内存
-    struct epoll_event *events = malloc(sizeof(struct epoll_event) * server_info_st_p->file_listen_st.listen_sub_dir_num);
+    struct epoll_event *events = calloc(server_info_st_p->file_listen_st.listen_sub_dir_num, sizeof(struct epoll_event));
     if (events == NULL)
     {
-        ERROR_PRINT("malloc() fail, exit pth_file_listen!\n");
+        ERROR_PRINT("calloc() fail, exit pth_file_listen!\n");
         return NULL;
     }
     INFO_PRINT("epoll_fd = %d, listen_num = %d\n", server_info_st_p->file_listen_st.epoll_fd,
@@ -388,10 +389,10 @@ void *pth_file_listen(void *arg)
                     struct inotify_event *event = (struct inotify_event *)&buf[ii];
                     if (event->mask & IN_MODIFY)
                     {
-                        transmit_data_t *temp_transmit_data_p = malloc(sizeof(transmit_data_t));    // 传输文件功能结构体, 发送完成后释放掉
+                        transmit_data_t *temp_transmit_data_p = calloc(1, sizeof(transmit_data_t)); // 分配并初始化内存块
                         if (temp_transmit_data_p == NULL)
                         {
-                            ERROR_PRINT("malloc() to temp_transmit_data_p fail!!\n");
+                            ERROR_PRINT("calloc() to temp_transmit_data_p fail!!\n");
                             break;
                         }
 

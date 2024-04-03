@@ -2,7 +2,7 @@
  * @Description: 基于tcp协议的文件传输项目
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:10:24
- * @LastEditTime: 2024-04-03 17:12:01
+ * @LastEditTime: 2024-04-03 17:33:45
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\README.md
 -->
@@ -34,3 +34,4 @@
 6. [ ] client 掉线 server 要设置对应状态;
 ## 未解决bug
 1. [ ] 监听文件修改功能不能同时处理多个文件;
+2. [x] 发送完文件 pack_num 不清0, 用 calloc() 分配内存保证每次都是 0;

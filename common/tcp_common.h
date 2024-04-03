@@ -21,12 +21,12 @@
 #include <fcntl.h>
 
 /* 宏定义 */
-#define SERVER_DEBUG_FLAG 1              // 打印是否开启
-#define CLIENT_DEBUG_FLAG 1              // 打印是否开启
-#define TCP_USE_PORT 8080                // 使用的端口
-#define TRANSMIT_MAX_BUFFER_SIZE (50)    // 接收缓存最大大小 1mb
-#define SERVER_UPLOAD_RECENT_FILE_NUM 10 // 服务器上传最近修改过的文件数量
-#define FILE_NAME_MAX_LEN 256            // 文件名最大长度
+#define SERVER_DEBUG_FLAG 1                  // 打印是否开启
+#define CLIENT_DEBUG_FLAG 1                  // 打印是否开启
+#define TCP_USE_PORT 8080                    // 使用的端口
+#define TRANSMIT_MAX_BUFFER_SIZE (1024 * 10) // 接收缓存最大大小 10kb
+#define SERVER_UPLOAD_RECENT_FILE_NUM 10     // 服务器上传最近修改过的文件数量
+#define FILE_NAME_MAX_LEN 256                // 文件名最大长度
 
 // 日志相关函数
 #if (SERVER_DEBUG_FLAG == 1)
