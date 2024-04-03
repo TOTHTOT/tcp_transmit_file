@@ -27,7 +27,7 @@
 #define TRANSMIT_MAX_BUFFER_SIZE (1024 * 10) // 接收缓存最大大小 10kb
 #define SERVER_UPLOAD_RECENT_FILE_NUM 10     // 服务器上传最近修改过的文件数量
 #define FILE_NAME_MAX_LEN 256                // 文件名最大长度
-
+#define SERVER_LISTEN_MAX_FILE_NUM 1024      // 服务器监听文件数量最大值
 // 日志相关函数
 #if (SERVER_DEBUG_FLAG == 1)
 #define INFO_PRINT(fmt, ...)                                                               \

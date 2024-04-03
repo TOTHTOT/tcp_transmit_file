@@ -2,7 +2,7 @@
  * @Description: 基于tcp协议的文件传输项目
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:10:24
- * @LastEditTime: 2024-04-03 17:33:45
+ * @LastEditTime: 2024-04-03 17:59:38
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\README.md
 -->
@@ -33,5 +33,5 @@
 5. [ ] client 接收到 server 发送的文件时, 保存文件到指定目录;
 6. [ ] client 掉线 server 要设置对应状态;
 ## 未解决bug
-1. [ ] 监听文件修改功能不能同时处理多个文件;
+1. [x] 监听文件修改功能不能同时处理多个文件, 原来没有正确处理 read(server_info_st_p->file_listen_st.inotify_fd[j], buf, FILE_LISTEN_BUF_LEN) 返回的长度, 会返回多个修改过的文件信息;
 2. [x] 发送完文件 pack_num 不清0, 用 calloc() 分配内存保证每次都是 0;

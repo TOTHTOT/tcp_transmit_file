@@ -2,7 +2,7 @@
  * @Description: tcp 文件传输 服务器
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:09
- * @LastEditTime: 2024-04-03 17:29:52
+ * @LastEditTime: 2024-04-03 17:37:45
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\server\tcp_server.c
  */
@@ -386,29 +386,30 @@ void *pth_file_listen(void *arg)
                         ERROR_PRINT("read() fail\n");
                         break;
                     }
-                    struct inotify_event *event = (struct inotify_event *)&buf[ii];
-                    if (event->mask & IN_MODIFY)
+                    while (ii < len)
                     {
-                        transmit_data_t *temp_transmit_data_p = calloc(1, sizeof(transmit_data_t)); // 分配并初始化内存块
-                        if (temp_transmit_data_p == NULL)
+                        struct inotify_event *event = (struct inotify_event *)&buf[ii];
+
+                        if (event->mask & IN_MODIFY)
                         {
-                            ERROR_PRINT("calloc() to temp_transmit_data_p fail!!\n");
-                            break;
+                            transmit_data_t *temp_transmit_data_p = calloc(1, sizeof(transmit_data_t)); // 分配并初始化内存块
+                            if (temp_transmit_data_p == NULL)
+                            {
+                                perror("calloc");
+                                break;
+                            }
+
+                            INFO_PRINT("File modified: %s\n", event->name);
+
+                            // 合并地址和文件名
+                            snprintf((char *)temp_transmit_data_p->server_file_path, sizeof(temp_transmit_data_p->server_file_path), "%s/%s", server_info_st_p->file_listen_st.listen_sub_dir_path[j], event->name);
+                            snprintf((char *)temp_transmit_data_p->file_name, sizeof(temp_transmit_data_p->file_name), "%s", event->name);
+                            // 添加到传输列表, 同时传输多个文件时可能会由于网络原因造成阻塞所以使用列表
+                            server_send_one_file(server_info_st_p, temp_transmit_data_p);
                         }
 
-                        INFO_PRINT("File modified: %s\n", event->name);
-
-                        // 合并地址和文件名
-                        sprintf((char *)temp_transmit_data_p->server_file_path, "%s/%s", server_info_st_p->file_listen_st.listen_sub_dir_path[j], event->name);
-                        sprintf((char *)temp_transmit_data_p->file_name, "%s", event->name);
-                        // 添加到传输列表, 同时传输多个文件时可能会由于网络原因造成阻塞所以使用列表
-                        server_send_one_file(server_info_st_p, temp_transmit_data_p);
-                    }
-
-                    /* while (ii < len)
-                    {
                         ii += FILE_LISTEN_EVENT_SIZE + event->len;
-                    } */
+                    }
                 }
             }
         }
@@ -467,7 +468,7 @@ int main(int argc, char *argv[])
     pthread_create(&server_info_st.file_listen_tid, NULL, pth_file_listen, (void *)&server_info_st);
     // 创建发送文件线程
     pthread_create(&server_info_st.file_send_tid, NULL, pth_file_send, (void *)&server_info_st);
-    
+
     INFO_PRINT("client connected, client_fd = %d\n", server_info_st.clent_socket_fd);
     // 主循环, 处理发送功能
     server_info_st.running_flag = true;
