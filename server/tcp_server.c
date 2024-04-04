@@ -2,7 +2,7 @@
  * @Description: tcp 文件传输 服务器
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:09
- * @LastEditTime: 2024-04-03 17:37:45
+ * @LastEditTime: 2024-04-04 10:00:42
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\server\tcp_server.c
  */
@@ -63,6 +63,17 @@ uint8_t check_arg(int argc, char *argv[], server_info_t *server_info_st_p)
         ERROR_PRINT("ip_address invalid[%s]\n", argv[MAIN_ARGV_INDEX_IP]);
         ret = 2;
         goto ERROR_PRINT;
+    }
+    // 检测地址是否有效
+    if (is_directory_valid(argv[MAIN_ARGV_INDEX_SUB_DIR]) == false)
+    {
+        ERROR_PRINT("sub_dir invalid[%s]\n", argv[MAIN_ARGV_INDEX_SUB_DIR]);
+        return 3;
+    }
+    if (is_directory_valid(argv[MAIN_ARGV_INDEX_SUB_DIR + 1]) == false)
+    {
+        ERROR_PRINT("sub_dir invalid[%s]\n", argv[MAIN_ARGV_INDEX_SUB_DIR + 1]);
+        return 4;
     }
     // 校验输入参数, 设置参数
     /* INFO_PRINT("set config:\nip_address[%s], port[%s], sub_dir_num[%s], sub_dir[%s], sub_dir[%s], chek_file_time[%s]\n",
@@ -264,18 +275,20 @@ void server_exit(server_info_t *server_info_st_p)
     uint32_t i = 0;
     char buf = 1;
 
-    // 关闭 inotify_fd
-    for (i = 0; i < server_info_st_p->file_listen_st.listen_sub_dir_num; i++)
-    {
-        close(server_info_st_p->file_listen_st.inotify_fd[i]);
-    }
-    // 关闭 epoll, 线程会立马退出
-    close(server_info_st_p->file_listen_st.epoll_fd);
-
     // 通过管道发送数据给 epoll_wait 实现打断阻塞
     write(server_info_st_p->file_listen_st.pipe_fds[1], &buf, sizeof(buf));
     // 回收线程
     pthread_join(server_info_st_p->file_listen_tid, NULL);
+
+    // 关闭 epoll
+    close(server_info_st_p->file_listen_st.epoll_fd);
+
+    // 关闭 inotify_fd 关闭监听
+    for (i = 0; i < server_info_st_p->file_listen_st.listen_sub_dir_num; i++)
+    {
+        inotify_rm_watch(server_info_st_p->file_listen_st.inotify_fd[i], server_info_st_p->file_listen_st.inotify_wd[i]);
+        close(server_info_st_p->file_listen_st.inotify_fd[i]);
+    }
 
     send(server_info_st_p->clent_socket_fd, SERVER_EXIT_STR, strlen(SERVER_EXIT_STR), 0);
     INFO_PRINT("server exit\n");
@@ -301,7 +314,7 @@ uint8_t server_send_one_file(server_info_t *server_info_st_p, transmit_data_t *t
 
     INFO_PRINT("start send file: %s\n", transmit_data_st_p->server_file_path);
     // 从文件中读取数据并发送
-    size_t bytes_read;
+    int32_t bytes_read;
     while ((bytes_read = fread(transmit_data_st_p->file_data, 1, TRANSMIT_MAX_BUFFER_SIZE, file)) > 0)
     {
         // 将整个结构体发出去
@@ -430,6 +443,8 @@ void *pth_file_listen(void *arg)
  */
 void *pth_file_send(void *arg)
 {
+    server_info_t *server_info_st_p = (server_info_t *)arg;
+
     while (1)
     {
         usleep(100);
@@ -474,7 +489,8 @@ int main(int argc, char *argv[])
     server_info_st.running_flag = true;
     while (server_info_st.running_flag == true)
     {
-        /* ssize_t len, i = 0;
+#if 0
+        ssize_t len, i = 0;
         len = read(server_info_st.file_listen_st.inotify_fd, listen_file_buffer, FILE_LISTEN_BUF_LEN);
         if (len < 0)
         {
@@ -490,9 +506,8 @@ int main(int argc, char *argv[])
                 printf("File modified: %s\n", event->name);
             }
             i += FILE_LISTEN_EVENT_SIZE + event->len;
-        } */
+        }
 
-#if 0
         scanf("%s", buffer);
         // 发送消息给客户端
         send(server_info_st.clent_socket_fd, buffer, strlen(buffer), 0);

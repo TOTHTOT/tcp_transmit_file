@@ -62,4 +62,7 @@ typedef struct transmit_data
     uint8_t file_data[TRANSMIT_MAX_BUFFER_SIZE]; // 传输的文件内容
 } transmit_data_t;
 #pragma pack()
+
+/* 外部函数 */
+extern bool is_directory_valid(const char *dir_path);
 #endif /* __TCP_COMMON_H__ */

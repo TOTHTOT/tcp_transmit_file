@@ -50,3 +50,7 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+test_dir/server/emb_data/*.c
+test_dir/server/community/*.c
+test_dir/client/emb_data/*.c
+test_dir/client/community/*.c
