@@ -8,7 +8,6 @@
 #include <sys/ioctl.h>
 
 /* 宏定义 */
-#define SERVER_EXIT_STR "server exit"
 #define FILE_LISTEN_EVENT_SIZE (sizeof(struct inotify_event))
 #define FILE_LISTEN_BUF_LEN (SERVER_LISTEN_MAX_FILE_NUM * (FILE_LISTEN_EVENT_SIZE + 16)) // 监听 1024 个文件
 

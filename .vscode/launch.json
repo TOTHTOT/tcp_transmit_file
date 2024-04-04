@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "e:/Github/tcp_transmit_file/client",
-      "program": "e:/Github/tcp_transmit_file/client/build/Debug/outDebug",
+      "cwd": "e:/Github/tcp_transmit_file/server",
+      "program": "e:/Github/tcp_transmit_file/server/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [

@@ -2,7 +2,7 @@
  * @Description: tcp 文件传输 服务器
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:09
- * @LastEditTime: 2024-04-04 10:00:42
+ * @LastEditTime: 2024-04-04 15:41:21
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\server\tcp_server.c
  */
@@ -24,7 +24,15 @@ static uint8_t server_set_conifg(char *argv[], server_info_t *server_info_st_p)
 {
     server_info_st_p->port = atoi(argv[MAIN_ARGV_INDEX_POER]);
     server_info_st_p->file_listen_st.listen_sub_dir_num = atoi(argv[MAIN_ARGV_INDEX_SUB_DIR_NUM]);
-    server_info_st_p->file_listen_st.listen_sub_dir_path[0] = (int8_t *)argv[MAIN_ARGV_INDEX_SUB_DIR];
+    
+    // 根据 file_save_path_num 填写 file_save_path
+    for (uint8_t i = 0; i < server_info_st_p->file_listen_st.listen_sub_dir_num; i++)
+    {
+        server_info_st_p->file_listen_st.listen_sub_dir_path[i] = (int8_t *)argv[MAIN_ARGV_INDEX_SUB_DIR];
+        // client_info_st_p->file_save_info_st.file_save_path[i] = (uint8_t *)argv[MAIN_ARGV_INDEX_SUB_DIR + i];
+        // INFO_PRINT("file_save_path[%d] = %s\n", i, argv[MAIN_ARGV_INDEX_SUB_DIR + i]);
+    }
+
     server_info_st_p->file_listen_st.listen_sub_dir_path[1] = (int8_t *)argv[MAIN_ARGV_INDEX_SUB_DIR + 1];
     server_info_st_p->file_listen_st.check_file_time = atoi(argv[MAIN_ARGV_INDEX_SUB_DIR + 2]);
     memcpy(server_info_st_p->ip_address, argv[MAIN_ARGV_INDEX_IP], INET_ADDRSTRLEN);
@@ -50,7 +58,7 @@ uint8_t check_arg(int argc, char *argv[], server_info_t *server_info_st_p)
     main_argv_index_t index_em = (main_argv_index_t)argc;
     struct in_addr addr;
     int32_t ret = 0;
-    if (index_em < MAIN_ARGV_INDEX_MAX) // 参数数量大于等于最大值, 错误
+    if (index_em < MAIN_ARGV_INDEX_MAX) // 参数数量不合法
     {
         ERROR_PRINT("argc invalid[%d]\n", argc);
         ret = 1;
@@ -64,7 +72,7 @@ uint8_t check_arg(int argc, char *argv[], server_info_t *server_info_st_p)
         ret = 2;
         goto ERROR_PRINT;
     }
-    // 检测地址是否有效
+    // 检测文件夹地址是否有效
     if (is_directory_valid(argv[MAIN_ARGV_INDEX_SUB_DIR]) == false)
     {
         ERROR_PRINT("sub_dir invalid[%s]\n", argv[MAIN_ARGV_INDEX_SUB_DIR]);
@@ -303,16 +311,16 @@ void server_exit(server_info_t *server_info_st_p)
  * @author: TOTHTOT
  * @Date: 2024-04-03 11:31:52
  */
-uint8_t server_send_one_file(server_info_t *server_info_st_p, transmit_data_t *transmit_data_st_p)
+uint8_t server_send_one_file(server_info_t *server_info_st_p, transmit_data_t *transmit_data_st_p, const char *file_path)
 {
-    FILE *file = fopen((char *)transmit_data_st_p->server_file_path, "rb");
+    FILE *file = fopen(file_path, "rb");
     if (file == NULL)
     {
         perror("fopen");
         return 1; // 返回 1 表示打开失败
     }
 
-    INFO_PRINT("start send file: %s\n", transmit_data_st_p->server_file_path);
+    INFO_PRINT("start send file: %s\n", file_path);
     // 从文件中读取数据并发送
     int32_t bytes_read;
     while ((bytes_read = fread(transmit_data_st_p->file_data, 1, TRANSMIT_MAX_BUFFER_SIZE, file)) > 0)
@@ -321,12 +329,12 @@ uint8_t server_send_one_file(server_info_t *server_info_st_p, transmit_data_t *t
         if (send(server_info_st_p->clent_socket_fd, transmit_data_st_p, sizeof(transmit_data_t), 0) == -1)
         {
             perror("send");
-            ERROR_PRINT("send file: %s fail\n", transmit_data_st_p->server_file_path);
+            ERROR_PRINT("send file: %s fail\n", file_path);
             fclose(file);
             return 2;
         }
         memset(transmit_data_st_p->file_data, 0, TRANSMIT_MAX_BUFFER_SIZE);
-        INFO_PRINT("send file: %s, %d bytes, pack_num = %d\n", transmit_data_st_p->server_file_path, bytes_read, transmit_data_st_p->pack_num);
+        INFO_PRINT("send file: %s, %d bytes, pack_num = %d\n", file_path, bytes_read, transmit_data_st_p->pack_num);
         transmit_data_st_p->pack_num++;
     }
 
@@ -405,6 +413,7 @@ void *pth_file_listen(void *arg)
 
                         if (event->mask & IN_MODIFY)
                         {
+                            char full_file_path[FILE_NAME_MAX_LEN] = {0};
                             transmit_data_t *temp_transmit_data_p = calloc(1, sizeof(transmit_data_t)); // 分配并初始化内存块
                             if (temp_transmit_data_p == NULL)
                             {
@@ -415,10 +424,12 @@ void *pth_file_listen(void *arg)
                             INFO_PRINT("File modified: %s\n", event->name);
 
                             // 合并地址和文件名
-                            snprintf((char *)temp_transmit_data_p->server_file_path, sizeof(temp_transmit_data_p->server_file_path), "%s/%s", server_info_st_p->file_listen_st.listen_sub_dir_path[j], event->name);
+                            snprintf((char *)full_file_path, FILE_LISTEN_BUF_LEN, "%s/%s", server_info_st_p->file_listen_st.listen_sub_dir_path[j], event->name);
                             snprintf((char *)temp_transmit_data_p->file_name, sizeof(temp_transmit_data_p->file_name), "%s", event->name);
+                            // 填写编号 server 和 client 的 索引顺序要一样, client 根据索引选择保存文件的地址
+                            temp_transmit_data_p->server_file_index = j;
                             // 添加到传输列表, 同时传输多个文件时可能会由于网络原因造成阻塞所以使用列表
-                            server_send_one_file(server_info_st_p, temp_transmit_data_p);
+                            server_send_one_file(server_info_st_p, temp_transmit_data_p, full_file_path);
                         }
 
                         ii += FILE_LISTEN_EVENT_SIZE + event->len;
