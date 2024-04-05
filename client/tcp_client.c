@@ -2,7 +2,7 @@
  * @Description: tcp 传输文件 客户端
  * @Author: TOTHTOT
  * @Date: 2024-04-01 16:12:31
- * @LastEditTime: 2024-04-04 15:56:20
+ * @LastEditTime: 2024-04-05 09:23:38
  * @LastEditors: TOTHTOT
  * @FilePath: \tcp_transmit_file\client\tcp_client.c
  */
@@ -202,14 +202,13 @@ uint8_t client_analysis_server_pack(char *buffer, uint32_t buffer_size, tcp_clie
 uint8_t clinet_socket_init(tcp_client_info_t *client_info_st_p)
 {
     uint32_t connect_retry_times = 0; // 连接重试次数
-
     // 创建套接字
     if ((client_info_st_p->client_socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
         INFO_PRINT("\n Socket creation error \n");
         return 1;
     }
-    // 将套接字设置为阻塞模式
+// 将套接字设置为阻塞模式
     if (fcntl(client_info_st_p->client_socket_fd, F_SETFL, 0) == -1)
     {
         perror("fcntl");
@@ -236,14 +235,17 @@ uint8_t clinet_socket_init(tcp_client_info_t *client_info_st_p)
         }
         else
         {
-            // 连接成功退出
+                        // 连接成功退出
             return 0;
         }
         connect_retry_times++;
+
+        INFO_PRINT("connect retry times = %d\r", connect_retry_times);
+        fflush(stdout);
         usleep(100 * 1000);
     }
 
-    // 没连接上 服务器退出流程
+        // 没连接上 服务器退出流程
     client_exit(client_info_st_p);
     return 3;
 }
@@ -348,6 +350,7 @@ int main(int argc, char *argv[])
     tcp_client_info_t client_info_st = {0};
     int valread = 0;
 
+    printf("\nclient version date %s %s\n\n", __DATE__, __TIME__);
     g_client_info_st_p = &client_info_st;
 
     client_info_st.running_flag = true;
@@ -355,13 +358,13 @@ int main(int argc, char *argv[])
     if (check_arg(argc, argv, &client_info_st) != 0)
     {
         ERROR_PRINT("check_arg error\n");
-        return 1;
+        exit(EXIT_FAILURE);
     }
     // 初始化客户端
     if (client_init(&client_info_st) != 0)
     {
         ERROR_PRINT("client_init error\n");
-        return 2;
+        exit(EXIT_FAILURE);
     }
 
     while (client_info_st.running_flag == true)
@@ -393,7 +396,7 @@ int main(int argc, char *argv[])
                         perror("recv");
                         break;
                     }
-                    else if (valread == 0)  // 断开连接
+                    else if (valread == 0) // 断开连接
                     {
                         printf("Connection closed by peer\n");
                         break;

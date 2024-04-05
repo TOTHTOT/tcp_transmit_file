@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g -std=gnu99
-LDFLAGS = -pthread
+LDFLAGS = -pthread -static
 
 .PHONY: all server client clean
 

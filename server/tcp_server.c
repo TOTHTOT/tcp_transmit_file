@@ -37,7 +37,7 @@ static uint8_t server_set_conifg(char *argv[], server_info_t *server_info_st_p)
     server_info_st_p->file_listen_st.check_file_time = atoi(argv[MAIN_ARGV_INDEX_SUB_DIR + 2]);
     memcpy(server_info_st_p->ip_address, argv[MAIN_ARGV_INDEX_IP], INET_ADDRSTRLEN);
 
-    INFO_PRINT("port = %d, sub_dir_num = %d, path[1] = %s, path[2] = %s time = %d\n",
+    INFO_PRINT("\nport = %d, sub_dir_num = %d \npath[1] = %s\npath[2] = %s time = %d\n",
                server_info_st_p->port, server_info_st_p->file_listen_st.listen_sub_dir_num,
                server_info_st_p->file_listen_st.listen_sub_dir_path[0], server_info_st_p->file_listen_st.listen_sub_dir_path[1],
                server_info_st_p->file_listen_st.check_file_time);
@@ -259,7 +259,7 @@ uint8_t server_init(int argc, char *argv[], server_info_t *server_info_st_p)
     if (check_arg(argc, argv, server_info_st_p) != 0)
     {
         ERROR_PRINT("check_arg() fail, exit program!\n");
-        return 1;
+         exit(EXIT_FAILURE);
     }
 
     // 注册信号处理函数
@@ -267,7 +267,7 @@ uint8_t server_init(int argc, char *argv[], server_info_t *server_info_st_p)
 
     // 初始化服务器 sock 相关功能, 有异常直接退出
     if (tcp_server_sock_init(server_info_st_p) != 0)
-        return 2;
+         exit(EXIT_FAILURE);
     return 0;
 }
 /**
@@ -475,13 +475,15 @@ int main(int argc, char *argv[])
     server_info_t server_info_st = {0};
     int addrlen = sizeof(server_info_st.address);
 
+    printf("\nserver version date %s %s\n\n", __DATE__, __TIME__);
+
     g_server_info_st_p = &server_info_st;
 
     // 初始化服务器
     if (server_init(argc, argv, &server_info_st) != 0)
     {
         ERROR_PRINT("server_init() fail, exit program!\n");
-        return 1;
+        exit(EXIT_FAILURE);
     }
 
     // 阻塞接受连接
